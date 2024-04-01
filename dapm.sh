@@ -2,6 +2,16 @@
 #
 # Provides a distro-agnostic interface for working with the system's default package manager.
 
+
+dapm::get-distro () {
+    (   lsb_release -ds ||
+        cat /etc/*release ||
+        uname -om
+    ) \
+    2>/dev/null | head -n1
+}
+
+
 dapm::get-package-manager () {
     local DISTRO="$1"
     if [[ "$DISTRO" == *"Arch"* ]]; then
@@ -14,22 +24,18 @@ dapm::get-package-manager () {
 }
 
 
-dapm::get-distro () {
-    ( lsb_release -ds || cat /etc/*release || uname -om ) 2>/dev/null | head -n1
-}
-
-
-# NOTE: in progress
 dapm::install () {
     local PACAKAGE_MANAGER=$(dapm::get-package-manager)
     if [[ ! $# -gt 0 ]]; then
         echo "At least one argument required! Exiting."
     else
-        echo "Package to install: $1"
-        # if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
-        #     for p in "$@"; do
-        #     done
-        if [[ "$PACKAGE_MANAGER" == "pacman" ]]; then
+        # echo "Package to install: $1"
+
+        # TODO: add CLI flag for adding repo ppa and installing from it
+        if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
+            sudo apt-get install -y "$1"
+        # TODO: add CLI for installing from AUR instead of pacman (also need to specify which AUR helper)
+        elif [[ "$PACKAGE_MANAGER" == "pacman" ]]; then
             if [[ ! $(pacman -Qi "$1") ]]; then
                 sudo pacman -Syuq --noconfirm "$1"
             fi
@@ -40,7 +46,7 @@ dapm::install () {
 }
 
 
-# TODO: this is old code from another script, adapt for this one.
+# TODO: this is old code from another script, adapt for `install()` above.
 # install_packages () {
 #     this_dir="$1"
 #     . "$this_dir/distros.sh"
