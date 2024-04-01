@@ -2,6 +2,43 @@
 #
 # Provides a distro-agnostic interface for working with the system's default package manager.
 
+dapm::get-package-manager () {
+    local DISTRO="$1"
+    if [[ "$DISTRO" == *"Arch"* ]]; then
+        echo "pacman"
+    elif [[ "$DISTRO" == *"Debian"* ]] || [[ "$DISTRO" == *"Ubuntu"* ]]; then
+        echo "apt"
+    else
+        echo "$DISTRO not yet supported!"
+    fi
+}
+
+
+dapm::get-distro () {
+    ( lsb_release -ds || cat /etc/*release || uname -om ) 2>/dev/null | head -n1
+}
+
+
+# NOTE: in progress
+dapm::install () {
+    local PACAKAGE_MANAGER=$(dapm::get-package-manager)
+    if [[ ! $# -gt 0 ]]; then
+        echo "At least one argument required! Exiting."
+    else
+        echo "Package to install: $1"
+        # if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
+        #     for p in "$@"; do
+        #     done
+        if [[ "$PACKAGE_MANAGER" == "pacman" ]]; then
+            if [[ ! $(pacman -Qi "$1") ]]; then
+                sudo pacman -Syuq --noconfirm "$1"
+            fi
+        else
+            echo "Package manager $PACKAGE_MANAGER is not supported!"
+        fi
+    fi
+}
+
 
 # TODO: this is old code from another script, adapt for this one.
 # install_packages () {
@@ -59,80 +96,60 @@
 
 
 dapm::update () {
-    if [[ $# -ne 1 ]]; then
-        echo "One argument required! Exiting."
+    local PACAKAGE_MANAGER=$(dapm::get-package-manager)
+    if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
+        sudo apt-get update
+    elif [[ "$PACKAGE_MANAGER" == "pacman" ]]; then
+        sudo pacman -Syq
     else
-        if [[ "$1" == "apt" ]]; then
-            sudo apt-get update
-        elif [[ "$1" == "pacman" ]]; then
-            sudo pacman -Syq
-        else
-            echo "Package manager $1 is not supported!"
-        fi
+        echo "Package manager $PACKAGE_MANAGER is not supported!"
     fi
 }
 
 
 dapm::upgrade () {
-    if [[ $# -ne 1 ]]; then
-        echo "One argument required! Exiting."
-    else
-        if [[ "$1" == "apt" ]]; then
-            if [[ $(apt-get update -qq) -eq 0 ]]; then
-	        	echo "Upgrading packages..."
-                # note: NEEDRESTART_SUSPEND=1 is required in Ubuntu 22.04 LTS in order to prevent a 
-                # prompt which asks the user which service(s) should be restarted, if any.
-	        	# NEEDRESTART_SUSPEND=1 apt-get upgrade -qq -y
-	        	sudo apt-get upgrade -qq -y
-	        fi
-        elif [[ "$1" == "pacman" ]]; then
-            if [[ $(pacman -Syq) -eq 0 ]]; then
-	        	echo "Upgrading packages..."
-                # the `--needed` flag maybe makes this conditional unnecessary?
-                sudo pacman -Syuq --needed --noconfirm
-	        fi
+    local PACAKAGE_MANAGER=$(dapm::get-package-manager)
+    if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
+        if [[ $(apt-get update -qq) -eq 0 ]]; then
+        	echo "Upgrading packages..."
+            # note: NEEDRESTART_SUSPEND=1 is required in Ubuntu 22.04 LTS in order to prevent a 
+            # prompt which asks the user which service(s) should be restarted, if any.
+        	# NEEDRESTART_SUSPEND=1 apt-get upgrade -qq -y
+        	sudo apt-get upgrade -qq -y
         else
-            echo "Package manager $1 is not supported!"
+            echo "Nothing to upgrade."
         fi
-    fi
-}
-
-
-dapm::get-package-manager () {
-    local DISTRO="$1"
-    if [[ "$DISTRO" == *"Arch"* ]]; then
-        echo "pacman"
-    elif [[ "$DISTRO" == *"Debian"* ]] || [[ "$DISTRO" == *"Ubuntu"* ]]; then
-        echo "apt"
+    elif [[ "$PACKAGE_MANAGER" == "pacman" ]]; then
+        if [[ $(pacman -Syq) -eq 0 ]]; then
+        	echo "Upgrading packages..."
+            # the `--needed` flag maybe makes this conditional unnecessary?
+            sudo pacman -Syuq --needed --noconfirm
+        fi
     else
-        echo "$DISTRO not yet supported!"
+        echo "Package manager $PACKAGE_MANAGER is not supported!"
     fi
-}
-
-
-dapm::get-distro () {
-    ( lsb_release -ds || cat /etc/*release || uname -om ) 2>/dev/null | head -n1
 }
 
 
 dapm::main () {
+    local ACTION="$1"
     local DISTRO=$(dapm::get-distro)
-    echo "Distro: $DISTRO"
     local PACKAGE_MANAGER=$(dapm::get-package-manager "$DISTRO")
-    echo "Package manager: $PACKAGE_MANAGER"
+
+    # echo "Distro: $DISTRO"
+    # echo "Package manager: $PACKAGE_MANAGER"
 
     # TODO: replace this block with proper CLI flags.
-
-    # TODO: install() function
-    if [[ "$1" == "install" ]]; then
-        echo "Function not yet written"
-        # dapm::install "$PACKAGE_MANAGER"
-    elif [[ "$1" == "update" ]]; then
-        dapm::update "$PACKAGE_MANAGER"
-    elif [[ "$1" == "upgrade" ]]; then
-        dapm::upgrade "$PACKAGE_MANAGER"
+    if [[ "$ACTION" == "install" ]]; then
+        for ((i=2; i<=$#; ++i)); do
+            dapm::install "${!i}"
+        done
+    elif [[ "$ACTION" == "update" ]]; then
+        dapm::update
+    elif [[ "$ACTION" == "upgrade" ]]; then
+        dapm::upgrade
     else
-        "$1 is not a valid action! Exiting."
+        "$ACTION is not a valid action! Exiting."
     fi
 }
 
@@ -140,9 +157,9 @@ dapm::main () {
 if [[ $(uname) != "Linux" ]]; then
     echo "$(uname) not supported! This only runs on Linux. Exiting."
 else
-    if [[ $# -ne 1 ]]; then
+    if [[ $# -eq 0 ]]; then
         echo "One argument required! Exiting."
     else
-        dapm::main "$1"
+        dapm::main "${@:1}"
     fi
 fi
