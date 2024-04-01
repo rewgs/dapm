@@ -144,8 +144,12 @@ dapm::main () {
         for ((i=2; i<=$#; ++i)); do
             dapm::install "${!i}"
         done
+    # FIXME: this implicitly ignores any additional arguments to `dapm`. Better to explicitly reject them.
+    # The only option that should allow more than one argument is `install`.
     elif [[ "$ACTION" == "update" ]]; then
         dapm::update
+    # FIXME: this implicitly ignores any additional arguments to `dapm`. Better to explicitly reject them.
+    # The only option that should allow more than one argument is `install`.
     elif [[ "$ACTION" == "upgrade" ]]; then
         dapm::upgrade
     else
